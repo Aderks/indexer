@@ -619,6 +619,7 @@ export class Network {
               ) {
                 id
                 ipfsHash
+                deniedAt
                 stakedTokens
                 signalAmount
                 queryFeesAmount
@@ -626,9 +627,6 @@ export class Network {
                   indexer {
                     id
                   }
-                }
-                subgraph {
-                  id
                 }
               }
             }
@@ -692,7 +690,8 @@ export class Network {
 
                 this.logger.trace('Deciding whether to allocate and index', {
                   deployment: {
-                    id: deployment.id,
+                    id: deployment.id.display,
+                    deniedAt: deployment.deniedAt,
                     stakedTokens: stakedTokens.toString(),
                     signalAmount: signalAmount.toString(),
                     avgQueryFees: avgQueryFees.toString(),
@@ -714,16 +713,27 @@ export class Network {
                           deploymentRule.minAverageQueryFees,
                         ).toString()
                       : null,
+                    requireSupported: deploymentRule.requireSupported,
                   },
                 })
 
                 // Skip the indexing rules checks if the decision basis is 'always' or 'never'
                 if (
-                  deploymentRule.decisionBasis === IndexingDecisionBasis.ALWAYS
+                  deploymentRule?.decisionBasis === IndexingDecisionBasis.ALWAYS
                 ) {
+                  // cannot allocate to unsupported subgraph by default
+                  if (
+                    deployment.deniedAt > 0 &&
+                    deploymentRule.requireSupported
+                  ) {
+                    return false
+                  }
                   return true
                 } else if (
-                  deploymentRule.decisionBasis === IndexingDecisionBasis.NEVER
+                  deploymentRule?.decisionBasis ===
+                    IndexingDecisionBasis.NEVER ||
+                  deploymentRule?.decisionBasis ===
+                    IndexingDecisionBasis.OFFCHAIN
                 ) {
                   return false
                 }
