@@ -37,6 +37,7 @@ const SET_INDEXING_RULE_MUTATION = gql`
       identifier
       identifierType
       allocationAmount
+      allocationMaxLifetime
       parallelAllocations
       maxAllocationPercentage
       minSignal
@@ -67,6 +68,7 @@ const INDEXING_RULE_QUERY = gql`
       identifier
       identifierType
       allocationAmount
+      allocationMaxLifetime
       parallelAllocations
       maxAllocationPercentage
       minSignal
@@ -85,6 +87,7 @@ const INDEXING_RULES_QUERY = gql`
       identifier
       identifierType
       allocationAmount
+      allocationMaxLifetime
       parallelAllocations
       maxAllocationPercentage
       minSignal
@@ -158,6 +161,7 @@ describe('Indexing rules', () => {
 
     const expected = {
       ...input,
+      allocationMaxLifetime: null,
       parallelAllocations: null,
       maxAllocationPercentage: null,
       minSignal: null,
@@ -186,6 +190,7 @@ describe('Indexing rules', () => {
       identifier: INDEXING_RULE_GLOBAL,
       identifierType: SubgraphIdentifierType.GROUP,
       allocationAmount: '1',
+      allocationMaxLifetime: 2,
       parallelAllocations: 1,
       maxAllocationPercentage: 0.5,
       minSignal: '2',
@@ -223,6 +228,7 @@ describe('Indexing rules', () => {
 
     const original = {
       ...originalInput,
+      allocationMaxLifetime: null,
       parallelAllocations: null,
       maxAllocationPercentage: null,
       maxSignal: null,
@@ -274,6 +280,7 @@ describe('Indexing rules', () => {
 
     const original = {
       ...originalInput,
+      allocationMaxLifetime: null,
       parallelAllocations: null,
       maxAllocationPercentage: null,
       maxSignal: null,
@@ -365,6 +372,7 @@ describe('Indexing rules', () => {
 
     const globalExpected = {
       ...globalInput,
+      allocationMaxLifetime: null,
       parallelAllocations: null,
       maxAllocationPercentage: null,
       maxSignal: null,
@@ -376,6 +384,7 @@ describe('Indexing rules', () => {
 
     const deploymentExpected = {
       ...deploymentInput,
+      allocationMaxLifetime: null,
       parallelAllocations: null,
       maxAllocationPercentage: null,
       maxSignal: null,
@@ -426,10 +435,12 @@ describe('Indexing rules', () => {
       identifierType: SubgraphIdentifierType.DEPLOYMENT,
       allocationAmount: '1',
       minSignal: '2',
+      allocationMaxLifetime: 13,
     }
 
     const expected = {
       ...input,
+      allocationMaxLifetime: 13,
       parallelAllocations: null,
       maxAllocationPercentage: null,
       maxSignal: null,
@@ -471,6 +482,7 @@ describe('Indexing rules', () => {
 
     const expectedBefore = {
       ...input,
+      allocationMaxLifetime: null,
       parallelAllocations: null,
       maxAllocationPercentage: null,
       minSignal: null,
@@ -527,10 +539,12 @@ describe('Indexing rules', () => {
       allocationAmount: '1',
       minSignal: '2',
       decisionBasis: IndexingDecisionBasis.OFFCHAIN,
+      allocationMaxLifetime: 15,
     }
 
     const globalExpected = {
       ...globalInput,
+      allocationMaxLifetime: null,
       parallelAllocations: null,
       maxAllocationPercentage: null,
       maxSignal: null,
@@ -541,6 +555,7 @@ describe('Indexing rules', () => {
 
     const deploymentExpected = {
       ...deploymentInput,
+      allocationMaxLifetime: 15,
       parallelAllocations: null,
       maxAllocationPercentage: null,
       maxSignal: null,
@@ -552,6 +567,7 @@ describe('Indexing rules', () => {
 
     const deploymentMergedExpected = {
       ...deploymentInput,
+      allocationMaxLifetime: 15,
       parallelAllocations: null,
       maxAllocationPercentage: null,
       maxSignal: null,
@@ -634,6 +650,7 @@ describe('Indexing rules', () => {
         decisionBasis: 'rules',
         identifier: 'global',
         identifierType: SubgraphIdentifierType.GROUP,
+        allocationMaxLifetime: null,
         maxAllocationPercentage: null,
         maxSignal: null,
         minAverageQueryFees: null,
@@ -686,6 +703,7 @@ describe('Indexing rules', () => {
         decisionBasis: 'rules',
         identifier: 'global',
         identifierType: SubgraphIdentifierType.GROUP,
+        allocationMaxLifetime: null,
         maxAllocationPercentage: null,
         maxSignal: null,
         minAverageQueryFees: null,

@@ -54,6 +54,7 @@ module.exports = {
     if (keys.length === 0) {
       keys.push(
         'allocationAmount',
+        'allocationMaxLifetime',
         'parallelAllocations',
         'minSignal',
         'maxSignal',

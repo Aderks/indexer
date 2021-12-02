@@ -209,7 +209,7 @@ class Agent {
       },
     )
 
-    const indexingRules = timer(60_000).tryMap(
+    const indexingRules = timer(20_000).tryMap(
       async () => {
         let rules = await this.indexer.indexingRules(true)
         const subgraphRuleIds = rules
@@ -252,7 +252,10 @@ class Agent {
       },
     )
 
-    const targetAllocations = timer(120_000).tryMap(
+    const targetAllocations = join({
+      ticker: timer(120_000),
+      indexingRules,
+    }).tryMap(
       async () => {
         const rules = await indexingRules.value()
 
@@ -274,6 +277,7 @@ class Agent {
     // and offchain subgraphs.
     const targetDeployments = join({
       ticker: timer(120_000),
+      indexingRules,
       targetAllocations,
     }).tryMap(
       async target => {
@@ -392,6 +396,10 @@ class Agent {
       }) => {
         this.logger.info(`Reconcile with the network`)
 
+        const indexerMaxAllocationEpochs = this.indexer.maxLifetime
+          ? this.indexer.maxLifetime
+          : maxAllocationEpochs
+
         // Do nothing else if the network is paused
         if (paused) {
           return this.logger.info(
@@ -443,7 +451,7 @@ class Agent {
             indexingRules,
             currentEpoch.toNumber(),
             currentEpochStartBlock,
-            maxAllocationEpochs,
+            indexerMaxAllocationEpochs,
           )
         } catch (err) {
           this.logger.warn(`Failed to reconcile indexer and network`, {
@@ -616,7 +624,7 @@ class Agent {
       }
     }
 
-    // Ensure that all subgraphs in offchain subgraphs list are _always_ indexed
+    // Ensure all subgraphs in offchain subgraphs list are _always_ indexed
     for (const offchainSubgraph of this.offchainSubgraphs) {
       if (!deploymentInList(targetDeployments, offchainSubgraph)) {
         targetDeployments.push(offchainSubgraph)
@@ -693,7 +701,6 @@ class Agent {
 
     this.logger.info(`Reconcile allocations`, {
       currentEpoch,
-      maxAllocationEpochs,
       allocationLifetime,
       targetAllocations: targetAllocations.map(
         deployment => deployment.display,
@@ -711,7 +718,7 @@ class Agent {
       ...activeAllocations.map(allocation => allocation.subgraphDeployment.id),
     ])
 
-    // Ensure the network subgraph is never allocated towards
+    // Ensure the network subgraph is never allocated towards unless explicitly allowed
     if (
       !this.allocateOnNetworkSubgraph &&
       this.networkSubgraph.deployment?.id.bytes32
@@ -753,7 +760,7 @@ class Agent {
 
           currentEpoch,
           currentEpochStartBlock,
-          maxAllocationEpochs,
+          allocationLifetime,
         )
       },
       { concurrency: 1 },
@@ -778,6 +785,9 @@ class Agent {
       ? BigNumber.from(rule.allocationAmount)
       : this.indexer.defaultAllocationAmount
     const desiredNumberOfAllocations = 1
+    const desiredAllocationMaxLifetime = rule?.allocationMaxLifetime
+      ? BigNumber.from(Math.max(1, rule.allocationMaxLifetime - 1))
+      : maxAllocationEpochs
     const activeAllocationAmount = activeAllocations.reduce(
       (sum, allocation) => sum.add(allocation.allocatedTokens),
       BigNumber.from('0'),
@@ -791,6 +801,7 @@ class Agent {
         `Reconcile deployment allocations for deployment '${deployment.ipfsHash}'`,
         {
           desiredAllocationAmount: formatGRT(desiredAllocationAmount),
+          desiredAllocationMaxLifetime,
 
           totalActiveAllocationAmount: formatGRT(activeAllocationAmount),
 
@@ -877,7 +888,12 @@ class Agent {
       )
     }
 
-    const lifetime = Math.max(1, maxAllocationEpochs - 1)
+    const lifetime = Math.max(
+      1,
+      rule?.allocationMaxLifetime
+        ? rule?.allocationMaxLifetime - 1
+        : maxAllocationEpochs,
+    )
 
     // For allocations that have expired, let's reallocate in one transaction (closeAndAllocate)
     let expiredAllocations = activeAllocations.filter(
