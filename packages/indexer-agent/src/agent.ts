@@ -939,11 +939,64 @@ class Agent {
     }
   }
 
+  async resolvePOI(
+    currentEpochStartBlock: BlockPointer,
+    allocation: Allocation,
+  ): Promise<string> {
+    const null_poi = utils.hexlify(Array(32).fill(0))
+    try {
+      const indexingStatus = await this.indexer.indexingStatus(
+        allocation.subgraphDeployment.id,
+      )
+
+      // if prevStartBlock < fail < current => prev
+      const validBlock = await this.network.ethereum.getBlock(
+        Math.min(
+          currentEpochStartBlock.number -
+            (
+              await this.network.contracts.epochManager.epochLength()
+            ).toNumber(),
+          indexingStatus.chains[0].latestBlock.number - 1,
+        ),
+      )
+      const validBlockPOI = await this.indexer.proofOfIndexing(
+        allocation.subgraphDeployment.id,
+        validBlock,
+        this.indexer.indexerAddress,
+      )
+
+      // don't close syncing subgraphs (or still has null or zero POI)
+      // we shouldn't need to check for POI here PLUS there's a check later but for security
+      if (
+        !indexingStatus.fatalError ||
+        validBlockPOI == undefined ||
+        validBlockPOI == null ||
+        validBlockPOI == null_poi
+      ) {
+        return null_poi
+      }
+
+      this.logger.info(
+        `Received a null or zero POI for current epoch, use latest valid block POI instead`,
+        {
+          deployment: allocation.subgraphDeployment.id.display,
+          allocation: allocation.id,
+          currentEpochStartBlock,
+          fatalError: indexingStatus.fatalError,
+          validBlockPOI,
+        },
+      )
+      return validBlockPOI
+    } catch {
+      return null_poi
+    }
+  }
+
   private async closeAllocation(
     epochStartBlock: BlockPointer,
     allocation: Allocation,
   ): Promise<{ closed: boolean; collectingQueryFees: boolean }> {
-    const poi = await this.indexer.proofOfIndexing(
+    let poi = await this.indexer.proofOfIndexing(
       allocation.subgraphDeployment.id,
       epochStartBlock,
       this.indexer.indexerAddress,
@@ -956,32 +1009,17 @@ class Agent {
       poi === null ||
       poi === utils.hexlify(Array(32).fill(0))
     ) {
-      const indexingStatus = await this.indexer.indexingStatus(
-        allocation.subgraphDeployment.id,
-      )
-      if (!indexingStatus) {
+      poi = await this.resolvePOI(epochStartBlock, allocation)
+      if (poi === utils.hexlify(Array(32).fill(0))) {
         this.logger.error(
-          `Received a null or zero POI for deployment and cannot find indexing status`,
+          `Received a null or zero POI for deployment (could've failed to query indexing status or still syncing)`,
           {
             deployment: allocation.subgraphDeployment.id.display,
             allocation: allocation.id,
           },
         )
-      } else {
-        const latestValidPoi = await this.indexer.proofOfIndexing(
-          allocation.subgraphDeployment.id,
-          indexingStatus?.chains[0].latestBlock,
-          this.indexer.indexerAddress,
-        )
-        this.logger.error(`Received a null or zero POI for deployment`, {
-          deployment: allocation.subgraphDeployment.id.display,
-          allocation: allocation.id,
-          fatalError: indexingStatus.fatalError,
-          latestValidPoi,
-        })
+        return { closed: false, collectingQueryFees: false }
       }
-
-      return { closed: false, collectingQueryFees: false }
     }
 
     // Close the allocation
@@ -1017,10 +1055,13 @@ class Agent {
       poi === null ||
       poi === utils.hexlify(Array(32).fill(0))
     ) {
+      // should the agent reallocate to a failed subgraph???
+      const tempPoi = await this.resolvePOI(epochStartBlock, existingAllocation)
       this.logger.error(`Received a null or zero POI for deployment`, {
         deployment: existingAllocation.subgraphDeployment.id.display,
         allocation: existingAllocation.id,
         epochStartBlock,
+        tempPoi,
       })
 
       return {
